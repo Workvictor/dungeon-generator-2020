@@ -1,0 +1,7 @@
+.wrapper {
+  display: flex;
+  padding: 16px;
+  & canvas {
+    background-color: #000;
+  }
+}

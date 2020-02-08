@@ -1,13 +1,55 @@
+@import url('https://fonts.googleapis.com/css?family=VT323&display=swap');
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  padding: 0;
+  background-color: #f1f1e7;
+  color: #222222;
+  font-size: 14px;
+  font-family: VT323, 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande',
+    'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+body * {
+  box-sizing: border-box;
+}
+
+p {
+  margin-bottom: 8px;
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+input {
+  outline: none;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+label input,
+label progress {
+  margin-left: 8px;
+}
+
+hr {
+  background: hsla(0, 0%, 0%, 0.2);
+  border: none;
+  height: 1px;
+  margin: 4px 0;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 16px 0;
+}
+
+h2 {
+  font-size: 20px;
+  margin: 8px 0;
 }
