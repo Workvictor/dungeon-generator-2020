@@ -1,14 +1,16 @@
 import { GridNode } from './GridNode';
 import { createRect } from './createRect';
+import { coroutine } from './coroutine';
+import { doWhileTrue } from './doWhileTrue';
 
 export const min = 9;
 
 export const max = 256;
 
 export const gridSize = {
-  width: 80,
+  width: 60,
   height: 40,
-  cellSize: 8,
+  cellSize: 16,
   density: 50
 };
 
@@ -24,32 +26,36 @@ export interface GridConstructor extends GridSize {
 
 type OnProgressCallback = (progress: number) => void;
 
+type NodeState = 0 | 1;
+
 const NEIGHBORS_OFFSETS = [-1, 0, +1];
 
 export class Grid {
   static MAX_WIDTH = 256;
   static MAX_HEIGHT = 256;
+
   constructor(props: GridConstructor) {
     const { cellSize, ctx, height, width, density } = props;
+
     this.density = density * DENSITY_PER_PERCENT + DENSITY_MIN;
-    console.log(props);
-    GridNode.CELL_SIZE = cellSize;
-    GridNode.STATE_MAP = [
-      createRect('#000', cellSize, cellSize),
-      createRect('#fff', cellSize, cellSize)
-    ];
+
     this.cellSize = cellSize;
+
     this.ctx = ctx;
+
     this.width = width;
+
     this.height = width;
+
     this.sizeOfGrid = width * height;
-    this.nodeStateMap = [
+
+    this.stateMap = [
       createRect('#000', cellSize, cellSize),
       createRect('#fff', cellSize, cellSize)
     ];
   }
 
-  nodeStateMap: HTMLCanvasElement[];
+  stateMap: HTMLCanvasElement[];
 
   density: number;
 
@@ -88,11 +94,60 @@ export class Grid {
     return 0;
   }
 
+  private getNodeImage = (state: NodeState) => {
+    return this.stateMap[state] || this.stateMap[0];
+  };
+
+  drawNode = (node: GridNode) => {
+    this.ctx.drawImage(this.getNodeImage(node.state), node.x, node.y);
+  };
+
+  drawNodeRect = (node: GridNode, color: string) => {
+    this.ctx.fillStyle = color;
+    this.ctx.fillRect(node.x, node.y, this.cellSize, this.cellSize);
+  };
+
+  drawRegionId = (node: GridNode, id: number) => {
+    this.ctx.fillStyle = '#000';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+    this.ctx.font = '10px Arial';
+    this.ctx.fillText(String(id), node.x, node.y);
+  };
+
   nodeInGrid = (col: number, row: number) => {
     return col >= 0 && col <= this.width && row >= 0 && row <= this.height;
   };
 
-  getNeighbors = (index: number) => {
+  getConnectedNeighborsIds = (
+    index: number,
+    map?: (node: GridNode) => boolean
+  ) => {
+    const iRow = this.getRow(index);
+    const iCol = this.getCol(index);
+    const result: number[] = [];
+    const crossOffsets = [
+      [iCol, iRow + 1],
+      [iCol, iRow - 1],
+      [iCol + 1, iRow],
+      [iCol - 1, iRow]
+    ];
+    crossOffsets.forEach(([col, row]) => {
+      const nIndex = this.getIndex(col, row);
+
+      const node = this.nodes[nIndex];
+
+      const availableNode = index !== nIndex && node;
+      const withNoMapFunction = availableNode && !map;
+      const withMapFunction = availableNode && map && map(node);
+      if (withNoMapFunction || withMapFunction) {
+        result.push(nIndex);
+      }
+    });
+    return result;
+  };
+
+  getNeighborsIds = (index: number, map?: (node: GridNode) => boolean) => {
     const row = this.getRow(index);
     const col = this.getCol(index);
 
@@ -104,7 +159,10 @@ export class Grid {
         const nRow = row + stepY;
         const nIndex = this.getIndex(nCol, nRow);
         const node = this.nodes[nIndex];
-        if (index !== nIndex && node && node.state > 0) {
+        const availableNode = index !== nIndex && node;
+        const withNoMapFunction = availableNode && !map;
+        const withMapFunction = availableNode && map && map(node);
+        if (withNoMapFunction || withMapFunction) {
           result.push(nIndex);
         }
       });
@@ -113,72 +171,127 @@ export class Grid {
     return result;
   };
 
-  private get loopTime() {
-    return Date.now() + 1000 / 60;
-  }
-
   createNodes = (onProgress: OnProgressCallback) => {
-    return new Promise(resolve => {
-      const loop = () => {
-        const loopTime = this.loopTime;
-        while (this.nodes.length < this.sizeOfGrid && loopTime > Date.now()) {
-          const node = new GridNode(...this.getCords(this.nodes.length));
-          node.state = this.getRandomState();
-          node.draw(this.ctx);
-          this.nodes.push(node);
-        }
-        onProgress(this.nodes.length / this.sizeOfGrid);
-        if (this.nodes.length < this.sizeOfGrid) {
-          window.requestAnimationFrame(loop);
+    return coroutine(loopTime => {
+      doWhileTrue(() => {
+        const coords = this.getCords(this.nodes.length);
+
+        const node = new GridNode(coords[0], coords[1], this.nodes.length);
+
+        const col = this.getCol(node.index);
+        const row = this.getRow(node.index);
+
+        if (
+          col === 0 ||
+          row === 0 ||
+          col === this.width - 1 ||
+          row === this.height - 1
+        ) {
+          node.state = 0;
         } else {
-          console.log('finished createNodes');
-          resolve();
+          node.state = this.getRandomState();
         }
-      };
-      loop();
+
+        this.drawNode(node);
+
+        this.nodes.push(node);
+
+        return loopTime > Date.now() && this.nodes.length < this.sizeOfGrid;
+      });
+
+      onProgress(this.nodes.length / this.sizeOfGrid);
+
+      return this.nodes.length < this.sizeOfGrid;
     });
   };
 
   smooth = (onProgress: OnProgressCallback) => {
-    let smooth = 3;
+    let smooth = 5;
     let index = 0;
-    return new Promise(resolve => {
-      const loop = () => {
-        const loopTime = this.loopTime;
-        while (
-          loopTime > Date.now() &&
-          smooth > 0 &&
-          index < this.sizeOfGrid - 1
-        ) {
-          const node = this.nodes[index];
-          const nCount = this.getNeighbors(index).length;
-          if (nCount > 4) {
-            node.state = 1;
-          }
-          if (nCount < 3) {
-            node.state = 0;
-          }
-          node.draw(this.ctx);
-          index++;
+    return coroutine(loopTime => {
+      doWhileTrue(() => {
+        const node = this.nodes[index];
+
+        const nCount = this.getNeighborsIds(index, n => n.state > 0).length;
+
+        if (nCount > 4) {
+          node.state = 1;
         }
-        onProgress(index / this.sizeOfGrid);
-        if (index === this.sizeOfGrid - 1) {
-          index = 0;
-          smooth--;
+
+        if (nCount < 3) {
+          node.state = 0;
         }
-        if (smooth > 0) {
-          window.requestAnimationFrame(loop);
-        } else {
-          console.log('finished smooth');
-          resolve();
+
+        this.drawNode(node);
+
+        index++;
+
+        return (
+          loopTime > Date.now() && smooth > 0 && index < this.sizeOfGrid - 1
+        );
+      });
+      onProgress(index / this.sizeOfGrid);
+
+      if (index === this.sizeOfGrid - 1) {
+        index = 0;
+        smooth--;
+      }
+
+      return smooth > 0;
+    });
+  };
+
+  getFirstWalkableIndex = () => {
+    const node = this.nodes.find(node => {
+      return node.state > 0 && node.regionId === 0;
+    });
+    if (node) {
+      return node.index;
+    }
+    return -1;
+  };
+
+  detectRegions = (onProgress: OnProgressCallback) => {
+    const regionList: number[] = [];
+
+    const debugColor = '#8bc34a';
+    const openListIds: number[] = [this.getFirstWalkableIndex()];
+
+    return coroutine(loopTime => {
+      doWhileTrue(() => {
+        const nodeIndex = openListIds.pop()!;
+        const regionId = regionList.length + 1;
+
+        if (nodeIndex >= 0) {
+          const stepNode = this.nodes[nodeIndex];
+          stepNode.regionId = regionId;
+          this.drawRegionId(stepNode, regionId);
+          this.getConnectedNeighborsIds(nodeIndex, n =>
+            Boolean(n.state > 0 && n.regionId === 0)
+          ).forEach(id => {
+            openListIds.push(id);
+          });
         }
-      };
-      loop();
+        const nextIndex = this.getFirstWalkableIndex();
+        if (openListIds.length === 0 && nextIndex >= 0) {
+          openListIds.push(nextIndex);
+          regionList.push(regionId);
+        }
+        if (openListIds.length === 0 && nextIndex < 0) {
+          regionList.push(regionId);
+        }
+        return loopTime > Date.now() && openListIds.length > 0;
+      });
+
+      console.log('detect', regionList);
+
+      return openListIds.length > 0;
     });
   };
 
   generate = async (onProgress: OnProgressCallback) => {
     await this.createNodes(onProgress);
     await this.smooth(onProgress);
+    await this.detectRegions(onProgress);
   };
 }

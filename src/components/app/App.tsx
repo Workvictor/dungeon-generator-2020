@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 
 import styles from './styles.module.scss';
 import { Sidebar } from 'components/sidebar/Sidebar';
@@ -24,7 +24,7 @@ export const App = () => {
     setHeight(props.height);
     const canvas = canvasRef.current!;
     canvas.width = props.width * props.cellSize;
-    canvas.height = props.height * props.cellSize;
+    canvas.height = props.height * props.cellSize + props.cellSize;
     const ctx = canvas.getContext('2d')!;
 
     const grid = new Grid({ ...props, ctx });
@@ -50,8 +50,8 @@ export const App = () => {
           <div>genTime: {genTime}ms</div>
           <canvas
             ref={canvasRef}
-            width={width * gridSize.cellSize}
-            height={height * gridSize.cellSize}
+            // width={width * gridSize.cellSize}
+            // height={height * gridSize.cellSize + gridSize.cellSize}
           />
         </div>
       </div>

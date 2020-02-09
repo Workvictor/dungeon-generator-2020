@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 import styles from './styles.module.scss';
-import { GridSize, gridSize, min, max, Grid } from 'utils/Grid';
+import { GridSize, gridSize, Grid } from 'utils/Grid';
 
 interface Props {
   onGenerate(state: GridSize): void;
